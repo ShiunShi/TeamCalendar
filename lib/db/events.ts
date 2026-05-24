@@ -7,23 +7,23 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 
-import { getDb, WORKSPACE_ID } from "@/lib/firebase/client";
-import type { Event, EventType, WorkspaceEvents } from "@/lib/types";
+import { getDb } from "@/lib/firebase/client";
+import type { Event, EventType, YearEvents } from "@/lib/types";
 
-// §8.5 — workspaceEvents/{wid}_{year}. One doc per year per workspace.
+// §8.5 — events/{year}. One doc per year.
 // Live subscription returns [] when the doc doesn't exist yet (first event of
 // the year hasn't been created — the doc is created on first write below).
 export function subscribeYear(
   year: number,
   cb: (events: Event[]) => void,
 ): Unsubscribe {
-  const ref = doc(getDb(), "workspaceEvents", `${WORKSPACE_ID}_${year}`);
+  const ref = doc(getDb(), "events", String(year));
   return onSnapshot(ref, (snap) => {
     if (!snap.exists()) {
       cb([]);
       return;
     }
-    const data = snap.data() as WorkspaceEvents;
+    const data = snap.data() as YearEvents;
     cb(data.events ?? []);
   });
 }
@@ -107,7 +107,7 @@ export function eventYears(event: Event): number[] {
 }
 
 function yearDocRef(year: number) {
-  return doc(getDb(), "workspaceEvents", `${WORKSPACE_ID}_${year}`);
+  return doc(getDb(), "events", String(year));
 }
 
 // §10 — concurrent writers use Firestore transactions on the events array
@@ -122,11 +122,10 @@ async function mutateYear(
   await runTransaction(getDb(), async (tx) => {
     const snap = await tx.get(ref);
     const existing = snap.exists()
-      ? ((snap.data() as WorkspaceEvents).events ?? [])
+      ? ((snap.data() as YearEvents).events ?? [])
       : [];
     const next = mutate(existing);
     tx.set(ref, {
-      workspaceId: WORKSPACE_ID,
       year,
       events: next,
     });
@@ -167,7 +166,7 @@ export async function createEvent(input: CreateEventInput): Promise<string> {
   // the array entry. The data-retention sweep uses date fields, not these.
   const now = Timestamp.now();
   // doc(collection(...)) generates a locally-unique id without writing.
-  const eventId = doc(collection(getDb(), "workspaceEvents")).id;
+  const eventId = doc(collection(getDb(), "events")).id;
   const event = buildEvent(eventId, input, now, now);
 
   const years = yearsOf(input);

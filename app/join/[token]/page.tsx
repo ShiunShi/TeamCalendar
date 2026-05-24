@@ -7,7 +7,7 @@ import { AlertCircle, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { useUser } from "@/lib/auth/AuthProvider";
-import { getInvite } from "@/lib/db/invites";
+import { getInvite, isInviteExpired } from "@/lib/db/invites";
 import { addMemberSelf } from "@/lib/db/teamMembers";
 import { getDb } from "@/lib/firebase/client";
 import { doc, getDoc } from "firebase/firestore";
@@ -61,6 +61,10 @@ export default function JoinPage({
           router.replace("/");
           return;
         }
+        if (isInviteExpired(invite)) {
+          setState({ kind: "invalid", reason: "expired" });
+          return;
+        }
         const teamSnap = await getDoc(doc(getDb(), "teams", invite.teamId));
         if (!teamSnap.exists()) {
           setState({ kind: "invalid", reason: "The team for this invite no longer exists." });
@@ -100,8 +104,15 @@ export default function JoinPage({
       {state.kind === "loading" || state.kind === "joined" ? (
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
       ) : state.kind === "invalid" ? (
-        <Card icon={<AlertCircle className="size-8 text-destructive" />} title="Invite link invalid">
-          <p className="text-sm text-muted-foreground">{state.reason}</p>
+        <Card
+          icon={<AlertCircle className="size-8 text-destructive" />}
+          title={state.reason === "expired" ? "Invite link expired" : "Invite link invalid"}
+        >
+          <p className="text-sm text-muted-foreground">
+            {state.reason === "expired"
+              ? "This invite link has expired. Ask the team owner for a new one."
+              : state.reason}
+          </p>
           <Button onClick={() => router.replace("/")} className="mt-2">Go home</Button>
         </Card>
       ) : (

@@ -12,7 +12,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-import { getDb, WORKSPACE_ID } from "@/lib/firebase/client";
+import { getDb } from "@/lib/firebase/client";
 import type {
   EmbeddedTeam,
   Member,
@@ -36,7 +36,6 @@ export async function createTeam(
 
   const team: Omit<Team, "createdAt"> & { createdAt: ReturnType<typeof serverTimestamp> } = {
     teamId,
-    workspaceId: WORKSPACE_ID,
     name: input.name,
     color: input.color,
     ownerId: creator.uid,

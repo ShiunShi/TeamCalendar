@@ -17,8 +17,6 @@ const firebaseConfig: FirebaseOptions = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-export const WORKSPACE_ID = process.env.NEXT_PUBLIC_WORKSPACE_ID ?? "default";
-
 // Lazy accessors. Calling getAuth() / getFirestore() at module load time blows
 // up during `next build` prerendering because env vars on Vercel may be absent
 // at build time and Firebase rejects the empty apiKey. Function-style accessors

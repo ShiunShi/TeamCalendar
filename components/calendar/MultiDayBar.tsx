@@ -59,6 +59,11 @@ export const MultiDayBar = React.forwardRef<
         <span className="ml-1.5 font-normal text-muted-foreground">
           {event.creatorName}
         </span>
+        {event.description ? (
+          <span className="ml-1.5 font-normal text-muted-foreground/70">
+            {event.description}
+          </span>
+        ) : null}
       </span>
     </button>
   );

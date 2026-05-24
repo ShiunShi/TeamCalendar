@@ -9,6 +9,7 @@ import { useUser } from "@/lib/auth/AuthProvider";
 import { createEvent, deleteEvent, updateEvent } from "@/lib/db/events";
 import { EVENT_TYPE_STYLE } from "@/lib/calendar/eventType";
 import { useTeamSelection } from "@/lib/calendar/teamSelection";
+import { useWorkspaceTeams } from "@/lib/hooks/useWorkspaceTeams";
 import {
   EVENT_TYPES,
   type Event,
@@ -149,6 +150,7 @@ function ScheduleForm({
 }) {
   const { userDoc } = useUser();
   const { selectedTeamId } = useTeamSelection();
+  const { teams } = useWorkspaceTeams();
   const [state, setState] = React.useState<FormState>(() => initialState(mode));
   const [busy, setBusy] = React.useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
@@ -157,6 +159,25 @@ function ScheduleForm({
   const errors = validate(state);
   const hasErrors = Boolean(errors.title || errors.date);
   const isEdit = mode.kind === "edit";
+
+  // Resolve the team this event belongs to:
+  //   - edit: fixed to the event's creatorTeamId.
+  //   - create: prefer the sidebar-selected team when the user is a member,
+  //     otherwise fall back to primaryTeamId. Mirrors the original inline
+  //     logic in handleSubmit; hoisted so the dialog title can display it.
+  const effectiveTeamId = React.useMemo(() => {
+    if (mode.kind === "edit") return mode.event.creatorTeamId;
+    if (!userDoc) return null;
+    if (selectedTeamId && userDoc.teams.some((t) => t.teamId === selectedTeamId)) {
+      return selectedTeamId;
+    }
+    return userDoc.primaryTeamId;
+  }, [mode, userDoc, selectedTeamId]);
+
+  const effectiveTeamName = React.useMemo(
+    () => teams.find((t) => t.teamId === effectiveTeamId)?.name ?? null,
+    [teams, effectiveTeamId],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,16 +192,7 @@ function ScheduleForm({
     setBusy(true);
     try {
       if (mode.kind === "create") {
-        // Prefer the sidebar-selected team when the user is a member of it,
-        // so events created while filtering on team B land in team B instead
-        // of silently going to the user's primary team (and getting filtered
-        // out of view). Fall back to primaryTeamId otherwise.
-        const creatorTeamId =
-          (selectedTeamId &&
-            userDoc.teams.some((t) => t.teamId === selectedTeamId)
-            ? selectedTeamId
-            : userDoc.primaryTeamId);
-        if (!creatorTeamId) {
+        if (!effectiveTeamId) {
           throw new Error(
             "Set a primary team before creating events.",
           );
@@ -188,7 +200,7 @@ function ScheduleForm({
         await createEvent({
           creatorId: userDoc.uid,
           creatorName: userDoc.name,
-          creatorTeamId,
+          creatorTeamId: effectiveTeamId,
           title: state.title,
           description: state.description.length > 0 ? state.description : null,
           type: state.type,
@@ -241,7 +253,10 @@ function ScheduleForm({
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit event" : "Schedule an event"}</DialogTitle>
+          <DialogTitle>
+            {(isEdit ? "Edit event" : "Schedule an event")}
+            {effectiveTeamName ? ` in ${effectiveTeamName}` : ""}
+          </DialogTitle>
           <DialogDescription>
             {isEdit
               ? "Update or delete this event."

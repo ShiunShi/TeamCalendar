@@ -6,7 +6,6 @@ import { doc, onSnapshot } from "firebase/firestore";
 
 import { getAuthClient, getDb } from "@/lib/firebase/client";
 import { ensureUserDoc } from "@/lib/db/users";
-import { ensureDefaultWorkspace } from "@/lib/db/workspace";
 import type { UserDoc } from "@/lib/types";
 
 type AuthContextValue = {
@@ -37,7 +36,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         await ensureUserDoc(u);
-        await ensureDefaultWorkspace();
       } catch (err) {
         // Bootstrap is best-effort. Log so misconfig (e.g. blocked rules)
         // is visible without breaking the auth flow.

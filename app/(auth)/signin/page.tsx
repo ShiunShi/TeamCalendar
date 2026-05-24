@@ -167,11 +167,11 @@ function MarketingPanel() {
 
 function Wordmark() {
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur">
-        <DotClusterMark className="size-5" />
+    <div className="flex items-center gap-6">
+      <span className="flex size-[5.5rem] items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur">
+        <DotClusterMark className="size-12" />
       </span>
-      <span className="text-lg font-semibold tracking-tight">TeamCalendar</span>
+      <span className="text-5xl font-semibold tracking-tight">TeamCalendar</span>
     </div>
   );
 }

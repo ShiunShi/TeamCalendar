@@ -17,7 +17,19 @@ import { CreateTeamDialog } from "@/components/dialogs/CreateTeamDialog";
 // §7.2 — 240px sidebar with workspace header, VIEWS section, and TEAMS
 // section. Views drive the calendar's view filter (lib/calendar/viewFilter).
 // Member rows surface a derived "status badge" from today's events (§6.6).
-export function Sidebar() {
+//
+// Responsive behavior: below md the sidebar is a fixed slide-in drawer
+// (controlled by `mobileOpen`); at md+ it's in-flow and `desktopCollapsed`
+// shrinks its width to 0.
+export function Sidebar({
+  mobileOpen,
+  desktopCollapsed,
+  onCloseMobile,
+}: {
+  mobileOpen: boolean;
+  desktopCollapsed: boolean;
+  onCloseMobile: () => void;
+}) {
   const { userDoc } = useUser();
   const { teams, loading } = useWorkspaceTeams();
   const { events: todayEvents } = useTodayEvents();
@@ -50,7 +62,21 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside
+      data-mobile-open={mobileOpen}
+      data-desktop-collapsed={desktopCollapsed}
+      className={cn(
+        // Mobile: fixed overlay drawer, hidden by default.
+        "fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground",
+        "-translate-x-full transition-transform duration-200 ease-out",
+        "data-[mobile-open=true]:translate-x-0",
+        // Desktop: in-flow with width-collapse animation.
+        "md:relative md:translate-x-0 md:transition-[width] md:duration-200",
+        "md:data-[desktop-collapsed=true]:w-0",
+        "md:data-[desktop-collapsed=true]:overflow-hidden",
+        "md:data-[desktop-collapsed=true]:border-r-0",
+      )}
+    >
       <header className="flex items-center justify-between px-4 py-3">
         <h1 className="text-base font-semibold tracking-tight">TeamCalendar</h1>
         <WorkspaceMenu />
@@ -65,7 +91,10 @@ export function Sidebar() {
                 key={v.kind}
                 type="button"
                 aria-pressed={isActive}
-                onClick={() => setActiveView(v.kind)}
+                onClick={() => {
+                  setActiveView(v.kind);
+                  onCloseMobile();
+                }}
                 className={cn(
                   "relative flex h-7 items-center gap-2 rounded-md px-2 text-sm transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
@@ -113,11 +142,12 @@ export function Sidebar() {
                 todayEvents={todayEvents}
                 isSelected={selectedTeamId === team.teamId}
                 anyTeamSelected={anyTeamSelected}
-                onSelectTeam={() =>
+                onSelectTeam={() => {
                   setSelectedTeamId(
                     selectedTeamId === team.teamId ? null : team.teamId,
-                  )
-                }
+                  );
+                  onCloseMobile();
+                }}
               />
             ))
           )}

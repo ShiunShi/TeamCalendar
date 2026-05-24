@@ -9,6 +9,7 @@ import type { Event, Team } from "@/lib/types";
 import { EVENT_TYPE_STYLE } from "@/lib/calendar/eventType";
 import { eventInterval } from "@/lib/calendar/grid";
 import { deleteEvent } from "@/lib/db/events";
+import { getInitials } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,7 +84,7 @@ export function EventPopoverContent({
               className="text-[9px] font-semibold text-white"
               style={{ backgroundColor: teamColor }}
             >
-              {initials(event.creatorName)}
+              {getInitials(event.creatorName)}
             </AvatarFallback>
           </Avatar>
           <span>{event.creatorName}</span>
@@ -155,11 +156,3 @@ export function EventPopoverContent({
   );
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]!.toUpperCase())
-    .join("");
-}

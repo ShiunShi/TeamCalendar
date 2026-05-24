@@ -38,7 +38,6 @@ export type Role = "owner" | "member";
 // §8.3
 export interface Team {
   teamId: string;
-  workspaceId: string;
   name: string;
   color: TeamColorHex;
   ownerId: string;
@@ -78,14 +77,21 @@ export interface UserDoc {
 
 // invites/{token} — Phase 3 invite-link onboarding.
 // Not in v1.1 spec §8 explicitly; introduced under the resolved invite-link decision.
+// expiresAt is enforced by a Firestore TTL policy (purges within ~24h of expiry)
+// and by a client-side check on the /join page (rejects immediately on expiry).
 export interface Invite {
   token: string;
   teamId: string;
   ownerId: string;
   createdAt: Timestamp;
+  expiresAt: Timestamp;
 }
 
-// §6.1 — one entry in workspaceEvents/{wid}_{year}.events[]
+// Invite links self-expire after 3 days (UX + Firestore TTL).
+export const INVITE_TTL_DAYS = 3;
+export const INVITE_TTL_MS = INVITE_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+// §6.1 — one entry in events/{year}.events[]
 export interface Event {
   eventId: string;
   creatorId: string;
@@ -102,9 +108,8 @@ export interface Event {
   updatedAt: Timestamp;
 }
 
-// §8.5 — workspaceEvents/{wid}_{year}
-export interface WorkspaceEvents {
-  workspaceId: string;
+// §8.5 — events/{year}
+export interface YearEvents {
   year: number;
   events: Event[];
 }

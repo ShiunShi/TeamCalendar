@@ -74,7 +74,5 @@ firestore.rules       Security rules (deploy via firebase-tools)
 
 ## See also
 
-- [`CLAUDE.md`](./CLAUDE.md) — architecture and conventions for AI/dev work in this repo
-- [`AGENTS.md`](./AGENTS.md) — Next.js 16 breaking-changes notice
 - [`firestore.rules`](./firestore.rules) — security model
 - [`.env.local.example`](./.env.local.example) — environment variable contract

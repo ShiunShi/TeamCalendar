@@ -10,9 +10,8 @@ import { cn } from "@/lib/utils";
 // CalendarView can apply the same logic when a pill is toggled to filter
 // the grid.
 const OUT_RE = /pto|vacation|out|leave|sick/i;
-const REMOTE_RE = /remote|wfh/i;
 
-export type PillKind = "out" | "remote" | "birthdays";
+export type PillKind = "out" | "birthdays";
 
 export function eventMatchesPill(
   event: Event,
@@ -27,8 +26,6 @@ export function eventMatchesPill(
         OUT_RE.test(event.title) &&
         eventOverlapsDay(event, today)
       );
-    case "remote":
-      return REMOTE_RE.test(event.title) && eventOverlapsDay(event, today);
     case "birthdays":
       return (
         event.type === "Birthday" &&
@@ -52,18 +49,15 @@ export function StatPills({
 
   const counts = React.useMemo(() => {
     const outCreators = new Set<string>();
-    const remoteCreators = new Set<string>();
     let birthdayCount = 0;
 
     for (const e of events) {
       if (eventMatchesPill(e, "out", today, week)) outCreators.add(e.creatorId);
-      if (eventMatchesPill(e, "remote", today, week)) remoteCreators.add(e.creatorId);
       if (eventMatchesPill(e, "birthdays", today, week)) birthdayCount += 1;
     }
 
     return {
       out: outCreators.size,
-      remote: remoteCreators.size,
       birthdays: birthdayCount,
     };
   }, [events, today, week]);
@@ -75,12 +69,6 @@ export function StatPills({
         label="out today"
         active={active === "out"}
         onClick={() => onToggle("out")}
-      />
-      <Pill
-        count={counts.remote}
-        label="remote"
-        active={active === "remote"}
-        onClick={() => onToggle("remote")}
       />
       <Pill
         count={counts.birthdays}
