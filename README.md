@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TeamCalendar V2
 
-## Getting Started
+Shared team calendar for PTO, travel, birthdays, and more.
 
-First, run the development server:
+## What this is
+
+A Next.js App Router application backed by Firestore and Firebase Auth, hosted on Vercel. v1.0 runs in a single shared workspace; teams are sub-units inside that workspace, and any member of any team can author events on the shared calendar.
+
+For architecture and design decisions, see [`CLAUDE.md`](./CLAUDE.md).
+
+## Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React + Next.js (App Router) |
+| Database | Google Firestore |
+| Auth | Google SSO + email/password (Firebase Auth) |
+| Hosting | Vercel |
+| Styling | Tailwind CSS, shadcn/ui |
+| Toasts | sonner |
+| Icons | lucide-react |
+| Scheduled jobs | Cloud Functions for Firebase (retention sweep) |
+
+## Prerequisites
+
+- Node 20+ (Next.js 16 requirement)
+- A Firebase project with **Firestore (Native mode)** and **Authentication** enabled — both **Google** and **Email/Password** sign-in providers turned on
+- Optional: [`firebase-tools`](https://firebase.google.com/docs/cli) for deploying Firestore rules (not yet wired into this repo)
+
+## Getting started
 
 ```bash
+git clone <repo-url>
+cd src
+npm install
+cp .env.local.example .env.local
+# Fill in values from Firebase Console → Project Settings → General → "Your apps"
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/signin`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The client variables (`NEXT_PUBLIC_FIREBASE_*` + `NEXT_PUBLIC_WORKSPACE_ID`) are sufficient to run `npm run dev`. The server-only `FIREBASE_*` variables in [`.env.local.example`](./.env.local.example) are only needed once Cloud Functions land (Phase 9).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Script | What it does |
+|--------|--------------|
+| `npm run dev` | Next.js dev server (Turbopack) on :3000 |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | ESLint (flat config at `eslint.config.mjs`) |
+| `npx tsc --noEmit` | Typecheck (no script yet — see `CLAUDE.md`) |
 
-To learn more about Next.js, take a look at the following resources:
+## Project structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/                  Next.js App Router routes
+  (auth)/             sign-in flow
+  join/[token]/       invite-link join page
+components/           UI (shadcn/ui under components/ui/)
+lib/
+  auth/               AuthProvider + useUser hook
+  db/                 Firestore data-access helpers
+  firebase/           client.ts + admin.ts (server-only)
+firestore.rules       Security rules (deploy via firebase-tools)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+- **App** — Vercel. Push to `main`.
+- **Firestore rules** — `firebase deploy --only firestore:rules` once `firebase-tools` is set up locally, or paste [`firestore.rules`](./firestore.rules) into Firebase Console → Firestore → Rules.
+- **Scheduled jobs / Cloud Functions** — not yet wired up; planned for Phase 9.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## See also
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`CLAUDE.md`](./CLAUDE.md) — architecture and conventions for AI/dev work in this repo
+- [`AGENTS.md`](./AGENTS.md) — Next.js 16 breaking-changes notice
+- [`firestore.rules`](./firestore.rules) — security model
+- [`.env.local.example`](./.env.local.example) — environment variable contract

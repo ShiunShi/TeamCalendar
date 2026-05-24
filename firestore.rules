@@ -1,0 +1,101 @@
+rules_version = '2';
+
+// Phase 3 — adds matchers for teams, teamMembers, invites.
+// Phase 5 — adds workspaceEvents (event CRUD).
+// Phase 9 replaces the relaxed teamMembers update rule and the
+// workspaceEvents writer rule with Cloud Function callables that
+// validate invite tokens / team membership server-side.
+//
+// Deploy via `firebase deploy --only firestore:rules` once firebase init
+// lands in Phase 9, or paste into Firebase Console → Firestore → Rules.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function isTeamOwner(teamId) {
+      return isAuth()
+        && exists(/databases/$(database)/documents/teams/$(teamId))
+        && get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid;
+    }
+
+    // Users — every authed user can read any profile (needed for sidebar
+    // rosters and event creator-name resolution). A user can only mutate
+    // their own document. The invite-link flow keeps all team-join writes
+    // as self-writes, so no cross-user write rule is needed.
+    match /users/{uid} {
+      allow read:           if isAuth();
+      allow create, update: if isSelf(uid);
+      allow delete:         if false;
+    }
+
+    // Workspace — single shared doc auto-created on first sign-in.
+    match /workspaces/{wid} {
+      allow read, create: if isAuth();
+      allow update, delete: if false;
+    }
+
+    // Teams — readable by any authed user. Creator must be the writer (so
+    // ownerId can't be spoofed). Only the current owner can rename/recolor
+    // or delete.
+    match /teams/{teamId} {
+      allow read:   if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isTeamOwner(teamId);
+    }
+
+    // Team rosters. Readable by any authed user.
+    // CREATE allowed by the team's owner (paired with team creation).
+    // UPDATE is intentionally relaxed to any authed writer for v1.0 — the
+    // join-by-invite flow needs the new member to add themselves and the
+    // member-remove flow needs the owner to remove others. Phase 9 swaps
+    // this for a Cloud Function callable that verifies the invite token /
+    // ownership before granting the write.
+    match /teamMembers/{teamId} {
+      allow read:   if isAuth();
+      allow create: if isTeamOwner(teamId);
+      allow update: if isAuth();
+      allow delete: if isTeamOwner(teamId);
+    }
+
+    // Invites — readable by any authed user (the /join page needs to
+    // resolve the token even before joining). Only the team owner can
+    // create or revoke.
+    match /invites/{token} {
+      allow read:   if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && isTeamOwner(request.resource.data.teamId);
+      allow delete: if isAuth()
+                    && resource.data.ownerId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // Workspace events — one doc per workspace per year (§8.5).
+    // READ: any authed user (the calendar is public per §11).
+    // WRITE: per §11, any team member (in any team) can create / edit /
+    // delete any event. Verifying "is in any team" in rules would require
+    // a get() on users/{uid} per write, which is expensive — we leave the
+    // rule as `isAuth()` for v1.0 and rely on the client gate (the +
+    // Schedule button is only reachable when userDoc.teams.length > 0).
+    // Phase 9 replaces this with a Cloud Function callable that validates
+    // team membership server-side.
+    match /workspaceEvents/{docId} {
+      allow read: if isAuth();
+      allow create, update, delete: if isAuth();
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

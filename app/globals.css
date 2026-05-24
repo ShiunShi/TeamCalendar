@@ -1,26 +1,217 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* v1.1 spec aliases — exposed to utilities */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-danger: var(--danger);
+  --color-focus-ring: var(--focus-ring);
+
+  /* Event-type palette §6.2 — body fill */
+  --color-evt-personal: var(--evt-personal);
+  --color-evt-birthday: var(--evt-birthday);
+  --color-evt-holiday: var(--evt-holiday);
+  --color-evt-travel: var(--evt-travel);
+  --color-evt-other: var(--evt-other);
+  /* Event-type icon/accent (darker shade) */
+  --color-evt-personal-ink: var(--evt-personal-ink);
+  --color-evt-birthday-ink: var(--evt-birthday-ink);
+  --color-evt-holiday-ink: var(--evt-holiday-ink);
+  --color-evt-travel-ink: var(--evt-travel-ink);
+  --color-evt-other-ink: var(--evt-other-ink);
+
+  /* Team palette §13.3 */
+  --color-team-blue: #3B82F6;
+  --color-team-purple: #A855F7;
+  --color-team-green: #22C55E;
+  --color-team-red: #EF4444;
+  --color-team-orange: #F97316;
+  --color-team-pink: #EC4899;
+  --color-team-teal: #14B8A6;
+  --color-team-amber: #F59E0B;
+
+  --radius-sm: 4px;   /* §13.4 chips, badges */
+  --radius-md: 6px;   /* §13.4 inputs, buttons */
+  --radius-lg: 10px;  /* §13.4 cards, modals */
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Light theme — v1.1 §13.1 ─── */
+:root {
+  /* v1.1 surface + text tokens */
+  --bg: #FFFFFF;
+  --surface: #F5F5F5;
+  --surface-2: #FAFAFA;
+  --text-primary: #111111;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --brand: #4F46E5;
+  --brand-fg: #FFFFFF;
+  --danger: #DC2626;
+  --focus-ring: #4F46E5;
+
+  /* Event-type fills (light) — §6.2 */
+  --evt-personal: #DBEAFE;
+  --evt-birthday: #F3E8FF;
+  --evt-holiday:  #FFEDD5;
+  --evt-travel:   #DCFCE7;
+  --evt-other:    #F3F4F6;
+  /* Type "ink" — darker shade for icon/accent */
+  --evt-personal-ink: #1E3A8A;
+  --evt-birthday-ink: #581C87;
+  --evt-holiday-ink:  #7C2D12;
+  --evt-travel-ink:   #14532D;
+  --evt-other-ink:    #1F2937;
+
+  /* shadcn-named tokens — mapped to v1.1 values */
+  --background: var(--bg);
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-fg);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--surface-2);             /* shadcn "accent" = hover surface */
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger);
+  --border: #E5E5E5;
+  --input: #E5E5E5;
+  --ring: var(--focus-ring);
+  --chart-1: var(--team-blue);
+  --chart-2: var(--team-purple);
+  --chart-3: var(--team-green);
+  --chart-4: var(--team-red);
+  --chart-5: var(--team-orange);
+  --radius: 0.625rem;
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-fg);
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: #E5E5E5;
+  --sidebar-ring: var(--focus-ring);
+}
+
+/* ─── Dark theme — v1.1 §13.1 ─── */
+.dark {
+  --bg: #0F0F0F;
+  --surface: #1A1A1A;
+  --surface-2: #222222;
+  --text-primary: #FFFFFF;
+  --text-secondary: #9CA3AF;
+  --text-tertiary: #6B7280;
+  --brand: #6366F1;
+  --brand-fg: #FFFFFF;
+  --danger: #EF4444;
+  --focus-ring: #6366F1;
+
+  /* Event-type fills (dark) — §6.2 */
+  --evt-personal: #1E3A8A;
+  --evt-birthday: #581C87;
+  --evt-holiday:  #7C2D12;
+  --evt-travel:   #14532D;
+  --evt-other:    #1F2937;
+  /* In dark mode "ink" inverts to a pale tint for legibility on dark fills */
+  --evt-personal-ink: #DBEAFE;
+  --evt-birthday-ink: #F3E8FF;
+  --evt-holiday-ink:  #FFEDD5;
+  --evt-travel-ink:   #DCFCE7;
+  --evt-other-ink:    #F3F4F6;
+
+  --background: var(--bg);
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-fg);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger);
+  --border: #333333;
+  --input: #333333;
+  --ring: var(--focus-ring);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-fg);
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: #333333;
+  --sidebar-ring: var(--focus-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans antialiased;
+  }
+  /* §13.2 tabular numerals for dates and counts */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
