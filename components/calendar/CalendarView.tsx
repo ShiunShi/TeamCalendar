@@ -23,6 +23,7 @@ import { useMonthEvents } from "@/lib/hooks/useMonthEvents";
 import { getMonthGrid, isoWeekRange } from "@/lib/calendar/grid";
 import { useTeamSelection } from "@/lib/calendar/teamSelection";
 import { eventMatchesView, useViewFilter } from "@/lib/calendar/viewFilter";
+import { useFocusedMonth } from "@/lib/calendar/focusedMonth";
 import {
   eventToInput,
   parseDateKey,
@@ -45,9 +46,7 @@ import { MonthGrid } from "./MonthGrid";
 // today, N opens the Schedule modal.
 export function CalendarView() {
   const today = React.useMemo(() => startOfToday(), []);
-  const [focusedMonth, setFocusedMonth] = React.useState<Date>(() =>
-    startOfMonth(today),
-  );
+  const { focusedMonth, setFocusedMonth } = useFocusedMonth();
   const [scheduleMode, setScheduleMode] = React.useState<ScheduleMode | null>(
     null,
   );
@@ -130,7 +129,7 @@ export function CalendarView() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [today, canSchedule]);
+  }, [today, canSchedule, setFocusedMonth]);
 
   const openCreateForDate = (date: Date) => {
     if (!canSchedule) return;

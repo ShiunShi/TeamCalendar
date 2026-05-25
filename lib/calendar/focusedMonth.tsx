@@ -5,7 +5,7 @@ import { startOfMonth, startOfToday } from "date-fns";
 
 interface FocusedMonthContextValue {
   focusedMonth: Date;
-  setFocusedMonth: (d: Date) => void;
+  setFocusedMonth: React.Dispatch<React.SetStateAction<Date>>;
 }
 
 const FocusedMonthContext = React.createContext<FocusedMonthContextValue>({
