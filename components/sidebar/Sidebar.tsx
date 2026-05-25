@@ -2,12 +2,18 @@
 
 import * as React from "react";
 import { Plus } from "lucide-react";
+import { endOfMonth, startOfMonth, startOfToday } from "date-fns";
 
 import { useUser } from "@/lib/auth/AuthProvider";
 import { useWorkspaceTeams } from "@/lib/hooks/useWorkspaceTeams";
 import { useTodayEvents } from "@/lib/hooks/useTodayEvents";
+import { useMonthEvents } from "@/lib/hooks/useMonthEvents";
+import { useWeekEvents } from "@/lib/hooks/useWeekEvents";
 import { useTeamSelection } from "@/lib/calendar/teamSelection";
 import { useViewFilter, type ViewKind } from "@/lib/calendar/viewFilter";
+import { useFocusedMonth } from "@/lib/calendar/focusedMonth";
+import { eventInterval, isoWeekRange } from "@/lib/calendar/grid";
+import { eventMatchesPill } from "@/components/calendar/StatPills";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { WorkspaceMenu } from "@/components/sidebar/WorkspaceMenu";
@@ -32,11 +38,55 @@ export function Sidebar({
 }) {
   const { userDoc } = useUser();
   const { teams, loading } = useWorkspaceTeams();
-  const { events: todayEvents } = useTodayEvents();
+  const { events: todayEvents, loading: todayLoading } = useTodayEvents();
   const { activeView, setActiveView } = useViewFilter();
   const { selectedTeamId, setSelectedTeamId } = useTeamSelection();
   const [createOpen, setCreateOpen] = React.useState(false);
   const anyTeamSelected = selectedTeamId !== null;
+
+  const { focusedMonth } = useFocusedMonth();
+  const { events: monthEvents, loading: monthLoading } =
+    useMonthEvents(focusedMonth);
+  const { events: weekEvents, loading: weekLoading } = useWeekEvents();
+
+  const today = React.useMemo(() => startOfToday(), []);
+  const week = React.useMemo(() => isoWeekRange(today), [today]);
+  const monthRange = React.useMemo(
+    () => ({
+      start: startOfMonth(focusedMonth),
+      end: endOfMonth(focusedMonth),
+    }),
+    [focusedMonth],
+  );
+
+  const allCount = React.useMemo(() => {
+    let n = 0;
+    for (const e of monthEvents) {
+      const iv = eventInterval(e);
+      if (!iv) continue;
+      if (iv.end >= monthRange.start && iv.start <= monthRange.end) n += 1;
+    }
+    return n;
+  }, [monthEvents, monthRange]);
+
+  const outCount = React.useMemo(() => {
+    const creators = new Set<string>();
+    for (const e of todayEvents) {
+      if (eventMatchesPill(e, "out", today, week)) {
+        // Schema guarantees creatorId, but fall back to eventId so a
+        // missing-creator row can't silently collapse to a single bucket.
+        creators.add(e.creatorId || e.eventId);
+      }
+    }
+    return creators.size;
+  }, [todayEvents, today, week]);
+
+  const birthdayCount = React.useMemo(
+    () =>
+      weekEvents.filter((e) => eventMatchesPill(e, "birthdays", today, week))
+        .length,
+    [weekEvents, today, week],
+  );
 
   // The user's owned + joined team IDs, used by TeamGroup to default-expand
   // and to gate owner-only controls.
@@ -55,10 +105,30 @@ export function Sidebar({
 
   // §7.3 — built-in views. "Cross-team only" deferred (needs Phase 9
   // denormalization to avoid a workspace-wide users/* subscription).
-  const views: ReadonlyArray<{ icon: string; label: string; kind: ViewKind }> = [
-    { icon: "📅", label: "All activity", kind: "all" },
-    { icon: "🏖", label: "Out today", kind: "out" },
-    { icon: "🎂", label: "Birthdays this week", kind: "birthdays" },
+  const views: ReadonlyArray<{
+    icon: string;
+    label: string;
+    kind: ViewKind;
+    count: number | null;
+  }> = [
+    {
+      icon: "📅",
+      label: "All activity",
+      kind: "all",
+      count: monthLoading ? null : allCount,
+    },
+    {
+      icon: "🏖",
+      label: "Out today",
+      kind: "out",
+      count: todayLoading ? null : outCount,
+    },
+    {
+      icon: "🎂",
+      label: "Birthdays this week",
+      kind: "birthdays",
+      count: weekLoading ? null : birthdayCount,
+    },
   ];
 
   return (
@@ -111,6 +181,11 @@ export function Sidebar({
                 ) : null}
                 <span aria-hidden>{v.icon}</span>
                 <span className="flex-1 truncate text-left">{v.label}</span>
+                {v.count !== null && (
+                  <span className="ml-auto tabular-nums text-xs text-muted-foreground">
+                    {v.count}
+                  </span>
+                )}
               </button>
             );
           })}
