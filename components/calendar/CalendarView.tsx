@@ -37,7 +37,6 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CalendarHeader } from "./CalendarHeader";
 import { EventChip } from "./EventChip";
-import { eventMatchesPill, StatPills, type PillKind } from "./StatPills";
 import { MonthGrid } from "./MonthGrid";
 
 // Composes the calendar view. Owns focusedMonth, the team-filter selection
@@ -50,7 +49,6 @@ export function CalendarView() {
   const [scheduleMode, setScheduleMode] = React.useState<ScheduleMode | null>(
     null,
   );
-  const [activePill, setActivePill] = React.useState<PillKind | null>(null);
   const { activeView } = useViewFilter();
   const { selectedTeamId } = useTeamSelection();
 
@@ -93,19 +91,12 @@ export function CalendarView() {
   // §7.3 — view filter is applied between team filter and pill filter so
   // that pill counts (built from teamFilteredEvents) don't depend on which
   // view is active, but the active pill still narrows further.
-  const viewFilteredEvents = React.useMemo(() => {
+  const filteredEvents = React.useMemo(() => {
     if (activeView === "all") return teamFilteredEvents;
     return teamFilteredEvents.filter((e) =>
       eventMatchesView(e, activeView, today, weekRange),
     );
   }, [teamFilteredEvents, activeView, today, weekRange]);
-
-  const filteredEvents = React.useMemo(() => {
-    if (!activePill) return viewFilteredEvents;
-    return viewFilteredEvents.filter((e) =>
-      eventMatchesPill(e, activePill, today, weekRange),
-    );
-  }, [viewFilteredEvents, activePill, today, weekRange]);
 
   // Keyboard shortcuts — bound at the window so they work even when no input
   // has focus. Ignore when typing in an input/textarea.
@@ -200,15 +191,6 @@ export function CalendarView() {
             onPickMonth={(date) => setFocusedMonth(startOfMonth(date))}
             onSchedule={() => setScheduleMode({ kind: "create" })}
             scheduleDisabled={!canSchedule}
-          />
-
-          <StatPills
-            events={teamFilteredEvents}
-            today={today}
-            active={activePill}
-            onToggle={(kind) =>
-              setActivePill((curr) => (curr === kind ? null : kind))
-            }
           />
 
           <MonthGrid
