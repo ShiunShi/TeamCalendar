@@ -105,10 +105,13 @@ function WeekdayHeader() {
   const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   return (
     <div className="grid grid-cols-7 border-b bg-muted/40">
-      {labels.map((label) => (
+      {labels.map((label, i) => (
         <div
           key={label}
-          className="px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+          className={cn(
+            "px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider",
+            i === 5 || i === 6 ? "text-weekend" : "text-muted-foreground",
+          )}
         >
           {label}
         </div>
