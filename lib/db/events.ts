@@ -235,6 +235,9 @@ export async function createHolidayEventsBulk(
   let created = 0;
   let skipped = 0;
   await mutateYear(year, (existing) => {
+    // Reset counters in case Firestore retries the transaction callback.
+    created = 0;
+    skipped = 0;
     const existingKeys = new Set<string>();
     for (const e of existing) {
       if (
