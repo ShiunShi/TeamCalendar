@@ -2,12 +2,24 @@ rules_version = '2';
 
 // Phase 3 — adds matchers for teams, teamMembers, invites.
 // Phase 5 — adds events (event CRUD).
-// Phase 9 replaces the relaxed teamMembers update rule and the
-// events writer rule with Cloud Function callables that
-// validate invite tokens / team membership server-side.
+// Phase 9 will replace the residual gaps below with Cloud Function callables
+// that validate writes server-side.
 //
 // Deploy via `firebase deploy --only firestore:rules` once firebase init
 // lands in Phase 9, or paste into Firebase Console → Firestore → Rules.
+//
+// ─── Residual risks NOT addressed by these rules (Phase 9 work) ───
+//  1. Event writers in ANY team can overwrite the per-year events array
+//     (including events authored by others) and can spoof creatorId /
+//     creatorTeamId on new entries. Rules cannot safely diff array overwrites.
+//  2. A user can inject a teamMembers entry with an arbitrary userId into
+//     any team's roster. The rules enforce "no existing entry removed and
+//     exactly one entry added," but cannot extract the added entry's userId
+//     to compare against request.auth.uid (the rules language has no map
+//     or filter operation on lists of maps).
+//  3. users/{uid}.teams[] is self-writable. A user can put any teamId there,
+//     which trivially satisfies the "writer is in a team" gate on event
+//     writes. Same map-extraction limitation prevents tighter validation.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -48,23 +60,33 @@ service cloud.firestore {
 
     // Team rosters. Readable by any authed user.
     // CREATE allowed by the team's owner (paired with team creation).
-    // UPDATE is intentionally relaxed to any authed writer for v1.0 — the
-    // join-by-invite flow needs the new member to add themselves and the
-    // member-remove flow needs the owner to remove others. Phase 9 swaps
-    // this for a Cloud Function callable that verifies the invite token /
-    // ownership before granting the write.
+    // UPDATE: either the team owner (full control) or any authed user
+    // performing a strict additive change — exactly one new entry, every
+    // existing entry preserved, and only the `members` field changed. The
+    // self-add path supports the invite-link flow. See residual risk #2 at
+    // the top of this file: rules cannot verify the added entry's userId
+    // equals request.auth.uid.
     match /teamMembers/{teamId} {
       allow read:   if isAuth();
       allow create: if isTeamOwner(teamId);
-      allow update: if isAuth();
+      allow update: if isAuth() && (
+                      isTeamOwner(teamId) ||
+                      (
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members"]) &&
+                        request.resource.data.members.size() == resource.data.members.size() + 1 &&
+                        request.resource.data.members.toSet().hasAll(resource.data.members.toSet())
+                      )
+                    );
       allow delete: if isTeamOwner(teamId);
     }
 
-    // Invites — readable by any authed user (the /join page needs to
-    // resolve the token even before joining). Only the team owner can
-    // create or revoke.
+    // Invites — single-doc GET allowed for any authed user (the /join page
+    // resolves a known token via getDoc). LIST is restricted to the team
+    // owner so token enumeration via getDocs(collection("invites")) is
+    // blocked. Only the team owner can create or revoke.
     match /invites/{token} {
-      allow read:   if isAuth();
+      allow get:    if isAuth();
+      allow list:   if isAuth() && isTeamOwner(resource.data.teamId);
       allow create: if isAuth()
                     && request.resource.data.ownerId == request.auth.uid
                     && isTeamOwner(request.resource.data.teamId);
@@ -75,16 +97,15 @@ service cloud.firestore {
 
     // Events — one doc per year (§8.5).
     // READ: any authed user (the calendar is public per §11).
-    // WRITE: per §11, any team member (in any team) can create / edit /
-    // delete any event. Verifying "is in any team" in rules would require
-    // a get() on users/{uid} per write, which is expensive — we leave the
-    // rule as `isAuth()` for v1.0 and rely on the client gate (the +
-    // Schedule button is only reachable when userDoc.teams.length > 0).
+    // WRITE: the writer must claim membership in at least one team. This
+    // gate reads users/{uid}.teams which is self-writable, so it is
+    // best-effort — see residual risks #1 and #3 at the top of this file.
     // Phase 9 replaces this with a Cloud Function callable that validates
-    // team membership server-side.
+    // team membership and the array diff server-side.
     match /events/{docId} {
       allow read: if isAuth();
-      allow create, update, delete: if isAuth();
+      allow create, update, delete: if isAuth()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teams.size() > 0;
     }
 
     // Deny everything else by default.
