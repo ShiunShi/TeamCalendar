@@ -472,6 +472,7 @@ function DayCell({
 }) {
   const inMonth = isSameMonth(cell.date, focusedMonth);
   const isToday = isSameDay(cell.date, todayDay);
+  const isWeekend = col === 5 || col === 6;
   const clickable = Boolean(onSelectDate);
   const { setNodeRef, isOver } = useDroppable({ id: dateKey(cell.date) });
   return (
@@ -493,7 +494,9 @@ function DayCell({
       className={cn(
         "p-2 min-h-[109px]",
         col > 0 && "border-l",
-        inMonth ? "bg-card" : "bg-transparent",
+        isWeekend
+          ? (inMonth ? "bg-weekend-bg" : "bg-weekend-bg/50")
+          : (inMonth ? "bg-card" : "bg-transparent"),
         clickable && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         isOver && "ring-2 ring-primary/40 ring-inset",
       )}
@@ -503,9 +506,9 @@ function DayCell({
           "tabular flex h-[18px] w-fit min-w-[22px] items-center justify-center text-[12px] font-medium",
           isToday
             ? "rounded-full bg-primary px-1.5 text-primary-foreground"
-            : inMonth
-              ? "text-foreground"
-              : "text-muted-foreground/60",
+            : isWeekend
+              ? (inMonth ? "text-weekend" : "text-weekend/60")
+              : (inMonth ? "text-foreground" : "text-muted-foreground/60"),
         )}
       >
         {format(cell.date, "d")}
