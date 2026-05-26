@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { MonthYearPickerContent } from "./MonthYearPicker";
+import { CalendarHeaderMenu } from "./CalendarHeaderMenu";
 
 // §7.6 — prev/next/today + clickable month/year title (opens picker) +
 // `+ Schedule`.
@@ -98,6 +99,7 @@ export function CalendarHeader({
         <Plus className="size-4" />
         <span className="ml-1">Schedule</span>
       </Button>
+      <CalendarHeaderMenu />
     </div>
   );
 }
