@@ -221,3 +221,60 @@ export async function deleteEvent(event: Event): Promise<void> {
     );
   }
 }
+
+// Bulk-insert Holiday events for a single year. Reads the year doc once
+// inside mutateYear's transaction, dedupes against existing entries by
+// (creatorTeamId, type=Holiday, single-day date), and appends the delta.
+// Title is intentionally not part of the dedupe key — see the design doc
+// 2026-05-26-import-taiwan-holidays-design.md.
+export async function createHolidayEventsBulk(
+  year: number,
+  holidays: { date: Date; description: string }[],
+  creator: { creatorId: string; creatorName: string; creatorTeamId: string },
+): Promise<{ created: number; skipped: number }> {
+  let created = 0;
+  let skipped = 0;
+  await mutateYear(year, (existing) => {
+    const existingKeys = new Set<string>();
+    for (const e of existing) {
+      if (
+        e.type === "Holiday" &&
+        e.creatorTeamId === creator.creatorTeamId &&
+        e.isSingleDay &&
+        e.date != null
+      ) {
+        existingKeys.add(`${e.creatorTeamId}|${e.date.toMillis()}`);
+      }
+    }
+    const additions: Event[] = [];
+    const now = Timestamp.now();
+    for (const h of holidays) {
+      const dateOnly = toDateOnly(h.date);
+      const key = `${creator.creatorTeamId}|${dateOnly.toMillis()}`;
+      if (existingKeys.has(key)) {
+        skipped += 1;
+        continue;
+      }
+      existingKeys.add(key); // dedupe within the input itself, defensively
+      const eventId = doc(collection(getDb(), "events")).id;
+      additions.push({
+        eventId,
+        creatorId: creator.creatorId,
+        creatorName: creator.creatorName,
+        creatorTeamId: creator.creatorTeamId,
+        title: h.description,
+        description: null,
+        type: "Holiday",
+        isSingleDay: true,
+        date: dateOnly,
+        startDate: null,
+        endDate: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      created += 1;
+    }
+    return [...existing, ...additions];
+  });
+  return { created, skipped };
+}
