@@ -75,6 +75,10 @@
   --color-team-teal: #14B8A6;
   --color-team-amber: #F59E0B;
 
+  /* Weekend accent — Sat/Sun columns */
+  --color-weekend: var(--weekend);
+  --color-weekend-bg: var(--weekend-bg);
+
   --radius-sm: 4px;   /* §13.4 chips, badges */
   --radius-md: 6px;   /* §13.4 inputs, buttons */
   --radius-lg: 10px;  /* §13.4 cards, modals */
@@ -97,6 +101,10 @@
   --brand-fg: #FFFFFF;
   --danger: #DC2626;
   --focus-ring: #4F46E5;
+
+  /* Weekend accent (light) — used on Sat/Sun in the month grid */
+  --weekend: #D97706;       /* amber-700 — header label + day number */
+  --weekend-bg: #FEF3C7;    /* amber-100 — faint cell tint */
 
   /* Event-type fills (light) — §6.2 */
   --evt-personal: #DBEAFE;
@@ -158,6 +166,10 @@
   --brand-fg: #FFFFFF;
   --danger: #EF4444;
   --focus-ring: #6366F1;
+
+  /* Weekend accent (dark) — used on Sat/Sun in the month grid */
+  --weekend: #F59E0B;                       /* amber-500 */
+  --weekend-bg: rgba(245, 158, 11, 0.08);   /* very faint amber wash on #0F0F0F */
 
   /* Event-type fills (dark) — §6.2 */
   --evt-personal: #1E3A8A;
