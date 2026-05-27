@@ -4,11 +4,8 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { useUser } from "@/lib/auth/AuthProvider";
-import { useTeamSelection } from "@/lib/calendar/teamSelection";
-import { useWorkspaceTeams } from "@/lib/hooks/useWorkspaceTeams";
 import { fetchTaiwanHolidays } from "@/lib/holidays/taiwan";
 import { createHolidayEventsBulk } from "@/lib/db/events";
-import type { Team, UserDoc } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -33,33 +30,15 @@ export function ImportHolidaysDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { user, userDoc } = useUser();
-  const { selectedTeamId } = useTeamSelection();
-  const { teams } = useWorkspaceTeams();
   const [year, setYear] = React.useState<number>(CURRENT_YEAR);
   const [busy, setBusy] = React.useState(false);
 
-  const resolvedTeamId = userDoc
-    ? resolveOwnedTeamId(userDoc, selectedTeamId)
-    : null;
-  const resolvedTeam: Team | null = React.useMemo(() => {
-    if (!resolvedTeamId) return null;
-    return teams.find((t) => t.teamId === resolvedTeamId) ?? null;
-  }, [resolvedTeamId, teams]);
-
   const yearValid =
     Number.isInteger(year) && year >= MIN_YEAR && year <= MAX_YEAR;
-  const canImport =
-    !busy &&
-    user != null &&
-    userDoc != null &&
-    resolvedTeamId != null &&
-    resolvedTeam != null &&
-    yearValid;
+  const canImport = !busy && user != null && userDoc != null && yearValid;
 
   async function onImport() {
-    if (!canImport || !user || !userDoc || !resolvedTeam || !resolvedTeamId) {
-      return;
-    }
+    if (!canImport) return;
     setBusy(true);
     try {
       const holidays = await fetchTaiwanHolidays(year);
@@ -72,9 +51,9 @@ export function ImportHolidaysDialog({
         year,
         holidays,
         {
-          creatorId: user.uid,
-          creatorName: userDoc.name,
-          creatorTeamId: resolvedTeamId,
+          creatorId: "SYSTEM",
+          creatorName: "SYSTEM",
+          creatorTeamId: "SYSTEM",
         },
       );
       toast.success(
@@ -94,8 +73,8 @@ export function ImportHolidaysDialog({
         <DialogHeader>
           <DialogTitle>Import Taiwan holidays</DialogTitle>
           <DialogDescription>
-            Adds public-holiday dates as Holiday events attributed to the
-            selected team. Re-imports skip duplicates.
+            Adds Taiwan public-holiday dates to the calendar. Re-imports skip
+            duplicates.
           </DialogDescription>
         </DialogHeader>
 
@@ -111,24 +90,6 @@ export function ImportHolidaysDialog({
               onChange={(e) => setYear(Number(e.target.value))}
               disabled={busy}
             />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label>Team</Label>
-            {resolvedTeam ? (
-              <div className="flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
-                <span
-                  className="inline-block size-3 rounded-full"
-                  style={{ backgroundColor: resolvedTeam.color }}
-                  aria-hidden
-                />
-                <span>{resolvedTeam.name}</span>
-              </div>
-            ) : (
-              <div className="rounded-md border border-input bg-card px-3 py-2 text-sm text-muted-foreground">
-                No team available — you must own at least one team.
-              </div>
-            )}
           </div>
         </div>
 
@@ -148,22 +109,4 @@ export function ImportHolidaysDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function resolveOwnedTeamId(
-  userDoc: UserDoc,
-  selectedTeamId: string | null,
-): string | null {
-  const owned = userDoc.teams.filter((t) => t.role === "owner");
-  if (owned.length === 0) return null;
-  if (selectedTeamId && owned.some((t) => t.teamId === selectedTeamId)) {
-    return selectedTeamId;
-  }
-  if (
-    userDoc.primaryTeamId &&
-    owned.some((t) => t.teamId === userDoc.primaryTeamId)
-  ) {
-    return userDoc.primaryTeamId;
-  }
-  return owned[0].teamId;
 }

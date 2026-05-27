@@ -81,9 +81,13 @@ export function CalendarView() {
   }, [allEvents, pending]);
 
   // §7.4 — single-select team filter. null means "All" (no filter).
+  // Holiday events are workspace-wide (imported with creatorTeamId="SYSTEM")
+  // and stay visible regardless of which team is selected.
   const teamFilteredEvents = React.useMemo(() => {
     if (!selectedTeamId) return baseEvents;
-    return baseEvents.filter((e) => e.creatorTeamId === selectedTeamId);
+    return baseEvents.filter(
+      (e) => e.creatorTeamId === selectedTeamId || e.type === "Holiday",
+    );
   }, [baseEvents, selectedTeamId]);
 
   const weekRange = React.useMemo(() => isoWeekRange(today), [today]);
