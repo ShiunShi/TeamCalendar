@@ -5,7 +5,7 @@
 
 ## Context
 
-A team owner needs to seed the calendar with Taiwan's statutory public holidays for a chosen year. Today owners create every event by hand, which is tedious and error-prone for predictable annual data. This feature adds a one-click import that fetches an authoritative public holiday list and writes the missing entries as Holiday-type events attributed to the owner's team.
+A team owner needs to seed the calendar with Taiwan's statutory public holidays for a chosen year. Today owners create every event by hand, which is tedious and error-prone for predictable annual data. This feature adds a one-click import that fetches an authoritative public holiday list and writes the missing entries as Holiday-type events attributed to the `SYSTEM` sentinel (not to any user or team). Imported holidays render with a neutral gray chip and stay visible regardless of which team is selected in the sidebar filter — they're national, not team-specific.
 
 Scope deliberately stays minimal: public holidays only, one year per import, idempotent re-imports. Makeup workdays (補班), commemorative-only days, and cross-source holiday data are out of scope.
 
@@ -15,21 +15,15 @@ Scope deliberately stays minimal: public holidays only, one year per import, ide
 2. Owner clicks the overflow → shadcn `DropdownMenu` opens with one item: **Import Taiwan holidays**. (Single item today; the menu structure can grow.)
 3. Selecting the item opens `ImportHolidaysDialog`:
    - **Year** field: `<input type="number">`, default = current year, min = current year − 1, max = current year + 1.
-   - **Team** display: read-only. Shows the resolved attribution team's color chip and name.
    - **Cancel** / **Import** buttons in the footer. Import is disabled while a request is in flight and shows a spinner.
-4. On **Import**: fetch year data → filter to public holidays → dedupe against existing Holiday events for `(year, teamId)` → write the delta in one Firestore transaction → toast `Imported N holidays for <year> (M already present)` → close dialog.
+4. On **Import**: fetch year data → filter to public holidays → dedupe against existing Holiday events for `(date, "SYSTEM")` → write the delta in one Firestore transaction → toast `Imported N holidays for <year> (M already present)` → close dialog.
 5. On error: error toast (e.g. `Holiday data for <year> is not available yet.`), dialog stays open so the owner can retry.
 
-### Team attribution resolution
+### Attribution
 
-When the owner owns multiple teams, the dialog uses ambient state (no in-dialog picker) in this order:
+Imported holidays carry the literal `"SYSTEM"` as `creatorId`, `creatorName`, and `creatorTeamId`. The team-color lookup (`teamsById.get("SYSTEM")`) returns `undefined`, so every consumer falls through to the existing gray fallback (`team?.color ?? "#9CA3AF"`). The chip's attribution label reads `SYSTEM`.
 
-1. Currently-selected sidebar team if the owner owns it.
-2. `userDoc.primaryTeamId` if owned.
-3. First owned team in `userDoc.teams`.
-4. `null` → the overflow button shouldn't have rendered; if it somehow did, the dialog disables Import and shows an explanatory inline error.
-
-To attribute to a different team the owner switches sidebar selection before opening the dialog. The dialog deliberately has no in-line team picker — keeps the dialog narrow and avoids duplicating the sidebar's team-selection UI.
+The ownership check (`userDoc.teams.some(t => t.role === "owner")`) is preserved only as the menu-visibility gate — non-owners never see the overflow item. The dialog itself does not need to resolve a team. The Firestore write succeeds under the existing H1 rule because the writer (a real owner) has `users.teams.size() > 0`; the per-entry creator fields on the events array are not validated by rules.
 
 ## Data Fetch
 
@@ -81,14 +75,14 @@ export async function createHolidayEventsBulk(
 
 **Why a new helper:** the existing `createEvent` runs one `mutateYear` transaction per event. A 25-holiday import would mean 25 transactions on the same year doc with serialized snapshot churn. The new helper calls `mutateYear` exactly once, building the deduped delta in a single transaction.
 
-**Dedupe key:** `(creatorTeamId, type === "Holiday", date.getTime())`.
+**Dedupe key:** `(creatorTeamId, type === "Holiday", date.getTime())`. Imports always use `creatorTeamId === "SYSTEM"`, so the key effectively reduces to `("SYSTEM", date)` for all current and future imports — a different owner re-importing the same year cannot create duplicates.
 
 Title is intentionally **not** part of the key. The API's `description` can shift wording year-over-year (`元旦` ↔ `開國紀念日` ↔ `中華民國開國紀念日`); excluding title from the key means a re-import doesn't re-add events because of an upstream string edit. Trade-off: a corrected title upstream will not propagate to existing events. Acceptable given the "skip duplicates silently" semantics the owner picked.
 
 **Algorithm inside `mutateYear`:**
 
 1. Read existing `events[]` from `events/{year}`.
-2. Build a `Set<string>` of dedupe keys for existing entries where `type === "Holiday" && creatorTeamId === creator.creatorTeamId && isSingleDay && date != null`. Key format: `<creatorTeamId>|<dateMillis>`.
+2. Build a `Set<string>` of dedupe keys for existing entries where `type === "Holiday" && creatorTeamId === creator.creatorTeamId && isSingleDay && date != null`. Key format: `<creatorTeamId>|<dateMillis>` (i.e. `SYSTEM|<dateMillis>` after this change).
 3. For each holiday in the input, compute its key. If in the Set, increment `skipped`. Otherwise:
    - Generate `eventId` via `doc(collection(getDb(), "events")).id`.
    - Build the `Event` map using the same shape as `createEvent` → `buildEvent`.
@@ -101,9 +95,9 @@ Title is intentionally **not** part of the key. The API's `description` can shif
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
 | `eventId`        | client-generated via `doc(collection(...)).id`   |
-| `creatorId`      | resolved owner uid                               |
-| `creatorName`    | resolved owner displayName                       |
-| `creatorTeamId`  | resolved attribution teamId                      |
+| `creatorId`      | `"SYSTEM"`                                       |
+| `creatorName`    | `"SYSTEM"`                                       |
+| `creatorTeamId`  | `"SYSTEM"`                                       |
 | `title`          | API `description`, or `"Public holiday"` fallback |
 | `description`    | `null`                                           |
 | `type`           | `"Holiday"`                                      |
@@ -122,26 +116,16 @@ Title is intentionally **not** part of the key. The API's `description` can shif
 
 **New files:**
 
-- `src/components/calendar/CalendarHeaderMenu.tsx` — owner-only overflow button. Uses the existing shadcn `DropdownMenu` at `components/ui/dropdown-menu.tsx`. Reads `useUser`, `useTeamSelection`, `useWorkspaceTeams` directly so the parent doesn't need to thread props. Manages local open-state for the `ImportHolidaysDialog`. Renders `null` when the user owns no teams.
-- `src/components/dialogs/ImportHolidaysDialog.tsx` — shadcn `Dialog`. Holds local state for: year input value, busy flag, optional error message. Calls `fetchTaiwanHolidays` then `createHolidayEventsBulk`, toasts the result, closes on success.
+- `src/components/calendar/CalendarHeaderMenu.tsx` — owner-only overflow button. Uses the existing shadcn `DropdownMenu` at `components/ui/dropdown-menu.tsx`. Reads `useUser` to gate visibility. Manages local open-state for the `ImportHolidaysDialog`. Renders `null` when the user owns no teams.
+- `src/components/dialogs/ImportHolidaysDialog.tsx` — shadcn `Dialog`. Holds local state for: year input value, busy flag. Calls `fetchTaiwanHolidays` then `createHolidayEventsBulk` with the `SYSTEM` creator, toasts the result, closes on success.
 
 **Edits to existing files:**
 
 - `src/components/calendar/CalendarHeader.tsx` — mount `<CalendarHeaderMenu />` immediately after the **+ Schedule** button. No prop changes (the menu reads its own context).
 - `src/lib/db/events.ts` — add `createHolidayEventsBulk` (described above). No changes to existing exports.
+- `src/components/calendar/CalendarView.tsx` — team filter exempts `type === "Holiday"` so workspace-wide holidays remain visible when the sidebar filter narrows to a specific team.
 
-**Not touched:** `firestore.rules` (the H1-partial rule from the prior security work already permits owner writes), `MonthGrid`, `EventChip`, view filters, sidebar.
-
-**Team-attribution helper:** lives inside `ImportHolidaysDialog` (the only consumer — the menu only needs an "owns ≥ 1 team" boolean, which is a one-liner). Promoted to `src/lib/holidays/attribution.ts` only if a second caller appears. Signature:
-
-```ts
-function resolveOwnedTeamId(
-  userDoc: UserDoc,
-  selectedTeamId: string | null,
-): string | null;
-```
-
-Implements the four-step fallback in **Team attribution resolution** above.
+**Not touched:** `firestore.rules` (the H1-partial rule from the prior security work already permits owner writes), `MonthGrid`, `EventChip`, sidebar, view filters.
 
 ## Error Handling
 
@@ -153,7 +137,6 @@ Implements the four-step fallback in **Team attribution resolution** above.
 | API shape unexpected                   | `toast.error("Holiday data was in an unexpected format.")` — dialog stays open. |
 | No public holidays in the year (empty) | `toast.success("No public holidays found for <year>.")` — dialog closes. (Treated as a benign zero-import.) |
 | Firestore transaction fails            | `toast.error(err.message ?? "Import failed.")` — dialog stays open. |
-| Owner has no resolvable team           | Defensive: dialog Import button disabled with inline message. (Overflow button shouldn't render in this case.) |
 
 The dialog stays open on every recoverable error so the owner doesn't lose their year input.
 
@@ -167,17 +150,17 @@ No test harness exists in the repo (no `test` script, no `__tests__`). Verificat
 **Manual smoke (golden path):**
 
 1. Sign in as a team owner. Confirm the overflow button renders next to **+ Schedule**.
-2. Open menu → **Import Taiwan holidays** → dialog opens with current year preset and the resolved team displayed.
-3. Click **Import** → success toast `Imported N holidays for <year> (0 already present)`. Confirm the holidays appear on the calendar with the team's color.
+2. Open menu → **Import Taiwan holidays** → dialog opens with current year preset (no Team row).
+3. Click **Import** → success toast `Imported N holidays for <year> (0 already present)`. Confirm the holidays appear on the calendar with a neutral gray chip and the creator label `SYSTEM`.
 4. Click **Import** again with the same year → `Imported 0 holidays for <year> (N already present)`. Calendar unchanged.
 5. Change year to current + 1 and re-import → new holidays land; previous year unaffected.
+6. Filter the sidebar to a specific team. Confirm holiday chips remain visible alongside that team's events.
 
 **Manual smoke (edge cases):**
 
-6. Year far in the future (2099) → friendly 404 toast; dialog stays open.
-7. Sign in as a non-owner → overflow button does **not** render.
-8. Sign in as a user with no teams → overflow button does **not** render.
-9. Switch sidebar to **All** → re-open dialog → resolved team falls back to primary (or first owned).
+7. Year far in the future (2099) → friendly 404 toast; dialog stays open.
+8. Sign in as a non-owner → overflow button does **not** render.
+9. Sign in as a user with no teams → overflow button does **not** render.
 10. Throttle devtools to offline → click Import → error toast; dialog stays open; retry after reconnect succeeds.
 
 **Not verified by this work:**
