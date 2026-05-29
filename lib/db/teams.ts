@@ -30,7 +30,7 @@ export async function createTeam(
   input: { name: string; color: TeamColorHex },
 ): Promise<string> {
   const db = getDb();
-  const teamRef = doc(collection(db, "teams"));
+  const teamRef = doc(collection(db, "team"));
   const teamId = teamRef.id;
   const now = Timestamp.now();
 
@@ -86,7 +86,7 @@ async function cascadeTeamPatch(
   patch: Partial<Pick<Team, "name" | "color">>,
 ): Promise<void> {
   const db = getDb();
-  const teamSnap = await getDoc(doc(db, "teams", teamId));
+  const teamSnap = await getDoc(doc(db, "team", teamId));
   if (!teamSnap.exists()) throw new Error(`Team ${teamId} not found`);
 
   const membersSnap = await getDoc(doc(db, "teamMembers", teamId));
@@ -99,7 +99,7 @@ async function cascadeTeamPatch(
   );
 
   const batch = writeBatch(db);
-  batch.update(doc(db, "teams", teamId), patch);
+  batch.update(doc(db, "team", teamId), patch);
 
   userSnaps.forEach((snap, i) => {
     if (!snap.exists()) return;
@@ -147,7 +147,7 @@ export async function deleteTeam(teamId: string): Promise<void> {
   );
 
   const batch = writeBatch(db);
-  batch.delete(doc(db, "teams", teamId));
+  batch.delete(doc(db, "team", teamId));
   batch.delete(doc(db, "teamMembers", teamId));
   inviteSnap.forEach((d) => batch.delete(d.ref));
 

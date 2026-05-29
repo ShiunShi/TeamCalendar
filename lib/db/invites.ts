@@ -16,7 +16,7 @@ import { getDb } from "@/lib/firebase/client";
 import { INVITE_TTL_MS, type Invite } from "@/lib/types";
 
 // Generate a tokenized invite for a team. Owner-only — UI gates this and
-// the firestore rule requires request.auth.uid == teams/{teamId}.ownerId.
+// the firestore rule requires request.auth.uid == team/{teamId}.ownerId.
 // Tokens are crypto.randomUUID() which yields 128 bits of entropy — safe
 // to share via copy-paste link, but anyone with the link can join.
 export async function createInvite(

@@ -20,7 +20,7 @@ export async function addMemberSelf(
   self: UserDoc,
 ): Promise<void> {
   const db = getDb();
-  const teamSnap = await getDoc(doc(db, "teams", teamId));
+  const teamSnap = await getDoc(doc(db, "team", teamId));
   if (!teamSnap.exists()) throw new Error(`Team ${teamId} not found`);
   const team = teamSnap.data() as Team;
 
@@ -48,7 +48,7 @@ export async function addMemberSelf(
   batch.update(doc(db, "teamMembers", teamId), {
     members: arrayUnion(member),
   });
-  batch.update(doc(db, "teams", teamId), {
+  batch.update(doc(db, "team", teamId), {
     memberCount: increment(1),
   });
   batch.update(doc(db, "users", self.uid), {
@@ -82,7 +82,7 @@ export async function removeMember(
   batch.update(doc(db, "teamMembers", teamId), {
     members: arrayRemove(target),
   });
-  batch.update(doc(db, "teams", teamId), {
+  batch.update(doc(db, "team", teamId), {
     memberCount: increment(-1),
   });
   if (embedded) {

@@ -34,8 +34,8 @@ service cloud.firestore {
 
     function isTeamOwner(teamId) {
       return isAuth()
-        && exists(/databases/$(database)/documents/teams/$(teamId))
-        && get(/databases/$(database)/documents/teams/$(teamId)).data.ownerId == request.auth.uid;
+        && exists(/databases/$(database)/documents/team/$(teamId))
+        && get(/databases/$(database)/documents/team/$(teamId)).data.ownerId == request.auth.uid;
     }
 
     // Users — every authed user can read any profile (needed for sidebar
@@ -51,7 +51,7 @@ service cloud.firestore {
     // Teams — readable by any authed user. Creator must be the writer (so
     // ownerId can't be spoofed). Only the current owner can rename/recolor
     // or delete.
-    match /teams/{teamId} {
+    match /team/{teamId} {
       allow read:   if isAuth();
       allow create: if isAuth()
                     && request.resource.data.ownerId == request.auth.uid;

@@ -14,7 +14,7 @@ export function useWorkspaceTeams(): { teams: Team[]; loading: boolean } {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    return onSnapshot(collection(getDb(), "teams"), (snap) => {
+    return onSnapshot(collection(getDb(), "team"), (snap) => {
       const next = snap.docs.map((d) => d.data() as Team);
       next.sort((a, b) => a.name.localeCompare(b.name));
       setTeams(next);

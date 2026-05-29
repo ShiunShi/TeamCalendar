@@ -65,7 +65,7 @@ export default function JoinPage({
           setState({ kind: "invalid", reason: "expired" });
           return;
         }
-        const teamSnap = await getDoc(doc(getDb(), "teams", invite.teamId));
+        const teamSnap = await getDoc(doc(getDb(), "team", invite.teamId));
         if (!teamSnap.exists()) {
           setState({ kind: "invalid", reason: "The team for this invite no longer exists." });
           return;
