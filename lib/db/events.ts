@@ -10,14 +10,16 @@ import {
 import { getDb } from "@/lib/firebase/client";
 import type { Event, EventType, YearEvents } from "@/lib/types";
 
-// §8.5 — events/{year}. One doc per year.
-// Live subscription returns [] when the doc doesn't exist yet (first event of
-// the year hasn't been created — the doc is created on first write below).
-export function subscribeYear(
+// §8.5 — team/{teamId}/teamEvents/{year}. One doc per team per year.
+// Live subscription returns [] when the doc doesn't exist yet (first event
+// for this team-year hasn't been written — the doc is created on first
+// write below).
+export function subscribeTeamYear(
+  teamId: string,
   year: number,
   cb: (events: Event[]) => void,
 ): Unsubscribe {
-  const ref = doc(getDb(), "events", String(year));
+  const ref = teamYearDocRef(teamId, year);
   return onSnapshot(ref, (snap) => {
     if (!snap.exists()) {
       cb([]);
@@ -106,19 +108,20 @@ export function eventYears(event: Event): number[] {
   return startYear === endYear ? [startYear] : [startYear, endYear];
 }
 
-function yearDocRef(year: number) {
-  return doc(getDb(), "events", String(year));
+function teamYearDocRef(teamId: string, year: number) {
+  return doc(getDb(), "team", teamId, "teamEvents", String(year));
 }
 
 // §10 — concurrent writers use Firestore transactions on the events array
-// to avoid lost updates. Each year doc is mutated independently; cross-year
-// events are written to both year docs (the SAME event object), and
-// useMonthEvents already dedupes by eventId.
-async function mutateYear(
+// to avoid lost updates. Each team-year doc is mutated independently;
+// cross-year events are written to both year docs (the SAME event object),
+// and useMonthEvents already dedupes by eventId.
+async function mutateTeamYear(
+  teamId: string,
   year: number,
   mutate: (events: Event[]) => Event[],
 ): Promise<void> {
-  const ref = yearDocRef(year);
+  const ref = teamYearDocRef(teamId, year);
   await runTransaction(getDb(), async (tx) => {
     const snap = await tx.get(ref);
     const existing = snap.exists()
@@ -166,12 +169,16 @@ export async function createEvent(input: CreateEventInput): Promise<string> {
   // the array entry. The data-retention sweep uses date fields, not these.
   const now = Timestamp.now();
   // doc(collection(...)) generates a locally-unique id without writing.
-  const eventId = doc(collection(getDb(), "events")).id;
+  // The path used here is purely an id generator; the event is actually
+  // written into team/{creatorTeamId}/teamEvents/{year} below.
+  const eventId = doc(
+    collection(getDb(), "team", input.creatorTeamId, "teamEvents"),
+  ).id;
   const event = buildEvent(eventId, input, now, now);
 
   const years = yearsOf(input);
   for (const year of years) {
-    await mutateYear(year, (events) => [...events, event]);
+    await mutateTeamYear(input.creatorTeamId, year, (events) => [...events, event]);
   }
   return eventId;
 }
@@ -194,19 +201,20 @@ export async function updateEvent(
     Timestamp.now(),
   );
 
+  const teamId = existing.creatorTeamId;
   const oldYears = new Set(eventYears(existing));
   const newYears = new Set(yearsOf(patch));
 
   // 1) Years the event left → remove.
   for (const year of oldYears) {
     if (newYears.has(year)) continue;
-    await mutateYear(year, (events) =>
+    await mutateTeamYear(teamId, year, (events) =>
       events.filter((e) => e.eventId !== eventId),
     );
   }
   // 2) Years the event still touches → replace in place (or append).
   for (const year of newYears) {
-    await mutateYear(year, (events) => {
+    await mutateTeamYear(teamId, year, (events) => {
       const filtered = events.filter((e) => e.eventId !== eventId);
       return [...filtered, updated];
     });
@@ -214,16 +222,17 @@ export async function updateEvent(
 }
 
 export async function deleteEvent(event: Event): Promise<void> {
+  const teamId = event.creatorTeamId;
   const years = eventYears(event);
   for (const year of years) {
-    await mutateYear(year, (events) =>
+    await mutateTeamYear(teamId, year, (events) =>
       events.filter((e) => e.eventId !== event.eventId),
     );
   }
 }
 
 // Bulk-insert Holiday events for a single year. Reads the year doc once
-// inside mutateYear's transaction, dedupes against existing entries by
+// inside mutateTeamYear's transaction, dedupes against existing entries by
 // (creatorTeamId, type=Holiday, single-day date), and appends the delta.
 // Title is intentionally not part of the dedupe key — see the design doc
 // 2026-05-26-import-taiwan-holidays-design.md.
@@ -234,7 +243,7 @@ export async function createHolidayEventsBulk(
 ): Promise<{ created: number; skipped: number }> {
   let created = 0;
   let skipped = 0;
-  await mutateYear(year, (existing) => {
+  await mutateTeamYear(creator.creatorTeamId, year, (existing) => {
     // Reset counters in case Firestore retries the transaction callback.
     created = 0;
     skipped = 0;
@@ -259,7 +268,9 @@ export async function createHolidayEventsBulk(
         continue;
       }
       existingKeys.add(key); // dedupe within the input itself, defensively
-      const eventId = doc(collection(getDb(), "events")).id;
+      const eventId = doc(
+        collection(getDb(), "team", creator.creatorTeamId, "teamEvents"),
+      ).id;
       additions.push({
         eventId,
         creatorId: creator.creatorId,

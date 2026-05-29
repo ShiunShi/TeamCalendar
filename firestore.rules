@@ -9,9 +9,12 @@ rules_version = '2';
 // lands in Phase 9, or paste into Firebase Console → Firestore → Rules.
 //
 // ─── Residual risks NOT addressed by these rules (Phase 9 work) ───
-//  1. Event writers in ANY team can overwrite the per-year events array
-//     (including events authored by others) and can spoof creatorId /
-//     creatorTeamId on new entries. Rules cannot safely diff array overwrites.
+//  1. Event writers can overwrite a single team's per-year events array
+//     (including events authored by others within THAT team) and can spoof
+//     creatorId / creatorTeamId on new entries. Rules cannot safely diff
+//     array overwrites. Blast radius is now scoped to one team's year doc
+//     rather than the whole workspace, but the per-team rule still cannot
+//     verify the writer is in this specific team's roster (see #2).
 //  2. A user can inject a teamMembers entry with an arbitrary userId into
 //     any team's roster. The rules enforce "no existing entry removed and
 //     exactly one entry added," but cannot extract the added entry's userId
@@ -56,6 +59,19 @@ service cloud.firestore {
       allow create: if isAuth()
                     && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isTeamOwner(teamId);
+
+      // Events — one doc per year, scoped to this team (§8.5).
+      // READ: any authed user (the calendar is public per §11).
+      // WRITE: the writer must claim membership in at least one team. This
+      // gate reads users/{uid}.teams which is self-writable, so it is
+      // best-effort — see residual risks #1 and #3 at the top of this file.
+      // Phase 9 replaces this with a Cloud Function callable that validates
+      // team membership and the array diff server-side.
+      match /teamEvents/{year} {
+        allow read: if isAuth();
+        allow create, update, delete: if isAuth()
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teams.size() > 0;
+      }
     }
 
     // Team rosters. Readable by any authed user.
@@ -93,19 +109,6 @@ service cloud.firestore {
       allow delete: if isAuth()
                     && resource.data.ownerId == request.auth.uid;
       allow update: if false;
-    }
-
-    // Events — one doc per year (§8.5).
-    // READ: any authed user (the calendar is public per §11).
-    // WRITE: the writer must claim membership in at least one team. This
-    // gate reads users/{uid}.teams which is self-writable, so it is
-    // best-effort — see residual risks #1 and #3 at the top of this file.
-    // Phase 9 replaces this with a Cloud Function callable that validates
-    // team membership and the array diff server-side.
-    match /events/{docId} {
-      allow read: if isAuth();
-      allow create, update, delete: if isAuth()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teams.size() > 0;
     }
 
     // Deny everything else by default.
