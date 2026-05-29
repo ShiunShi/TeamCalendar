@@ -1,7 +1,15 @@
 # Import Taiwan Holidays — Design
 
 **Date:** 2026-05-26
-**Status:** Approved (pending spec review)
+**Status:** Approved — paths and attribution superseded
+
+> **Schema rebased 2026-05-29.** Events now live at
+> `team/{teamId}/teamEvents/{year}` per
+> `2026-05-28-per-team-event-subcollections-design.md`. The SYSTEM-attribution
+> and Holiday filter-exemption behavior described below is being replaced by
+> the holiday-belongs-to-team follow-up spec. Treat the per-team-subcollection
+> spec and the upcoming holiday-attribution spec as the source of truth for
+> path and attribution; keep this doc for the dialog/UI/dedupe details.
 
 ## Context
 
