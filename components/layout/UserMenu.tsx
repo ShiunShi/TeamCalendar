@@ -1,7 +1,8 @@
 "use client";
 
 import { signOut } from "firebase/auth";
-import { LogOut } from "lucide-react";
+import { useTheme } from "next-themes";
+import { LogOut, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 
 import { useUser } from "@/lib/auth/AuthProvider";
@@ -17,6 +18,7 @@ import {
 
 export function UserMenu() {
   const { user, userDoc } = useUser();
+  const { theme, setTheme } = useTheme();
   if (!user) return null;
 
   const displayName = userDoc?.name ?? user.displayName ?? user.email ?? "";
@@ -33,6 +35,22 @@ export function UserMenu() {
 
   return (
     <div className="flex items-center gap-1.5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Toggle theme"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="relative transition-shadow hover:shadow-md"
+          >
+            <Moon className="size-4 scale-100 rotate-0 transition-transform dark:scale-0 dark:-rotate-90" />
+            <Sun className="absolute size-4 scale-0 rotate-90 transition-transform dark:scale-100 dark:rotate-0" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent align="end">Toggle theme</TooltipContent>
+      </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
           <Avatar>

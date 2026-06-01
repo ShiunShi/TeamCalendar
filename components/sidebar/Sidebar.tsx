@@ -16,7 +16,6 @@ import { eventInterval, isoWeekRange } from "@/lib/calendar/grid";
 import { eventMatchesPill } from "@/components/calendar/StatPills";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { WorkspaceMenu } from "@/components/sidebar/WorkspaceMenu";
 import { TeamGroup } from "@/components/sidebar/TeamGroup";
 import { CreateTeamDialog } from "@/components/dialogs/CreateTeamDialog";
 
@@ -147,9 +146,8 @@ export function Sidebar({
         "md:data-[desktop-collapsed=true]:border-r-0",
       )}
     >
-      <header className="flex items-center justify-between px-4 py-3">
+      <header className="flex items-center px-4 py-3">
         <h1 className="text-base font-semibold tracking-tight">TeamCalendar</h1>
-        <WorkspaceMenu />
       </header>
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 pb-4">
