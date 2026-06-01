@@ -39,9 +39,22 @@ export function CreateTeamDialog({
     teamName: string;
   } | null>(null);
 
-  // Radix Dialog unmounts content when `open` is false, so internal state
-  // (name/color/busy/createdInvite) is already fresh on each open. No reset
-  // effect needed.
+  // Radix unmounts the DialogContent DOM on close, but this component (which
+  // owns the state) stays mounted, so name/color/busy/createdInvite persist
+  // across closes. Reset them on each open→ so clicking + again shows a fresh
+  // "Create a team" form rather than the prior invite screen. Done during
+  // render via a tracked previous value (the React-recommended pattern) so it
+  // runs before paint and avoids set-state-in-effect.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setName("");
+      setColor(TEAM_COLORS[0].hex);
+      setBusy(false);
+      setCreatedInvite(null);
+    }
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
