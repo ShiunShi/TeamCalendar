@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { addMonths } from "date-fns";
 
 import { subscribeTeamYear } from "@/lib/db/events";
 import { useWorkspaceTeams } from "@/lib/hooks/useWorkspaceTeams";
 import { gridYears } from "@/lib/calendar/grid";
+import type { CalendarDisplayMode } from "@/lib/calendar/displayMode";
 import type { Event } from "@/lib/types";
 
 // Subscribes to the team-year docs for every visible team and every year the
@@ -15,15 +17,43 @@ export function useMonthEvents(focusedMonth: Date): {
   events: Event[];
   loading: boolean;
 } {
-  const { teams } = useWorkspaceTeams();
+  const years = React.useMemo(() => gridYears(focusedMonth), [focusedMonth]);
+  return useTeamYearEvents(years);
+}
 
+export function useCalendarEvents(
+  focusedMonth: Date,
+  mode: CalendarDisplayMode,
+): {
+  events: Event[];
+  loading: boolean;
+} {
+  const years = React.useMemo(
+    () => mode === "quarter" ? quarterYears(focusedMonth) : gridYears(focusedMonth),
+    [focusedMonth, mode],
+  );
+  return useTeamYearEvents(years);
+}
+
+function quarterYears(focusedMonth: Date): number[] {
+  const out = new Set<number>();
+  for (let offset = 0; offset < 3; offset++) {
+    out.add(addMonths(focusedMonth, offset).getFullYear());
+  }
+  return [...out].sort();
+}
+
+function useTeamYearEvents(years: number[]): {
+  events: Event[];
+  loading: boolean;
+} {
+  const { teams } = useWorkspaceTeams();
   // Sort teamIds so a stable order survives reorder churn in the
   // workspace-teams snapshot.
   const teamIds = React.useMemo(
     () => teams.map((t) => t.teamId).sort(),
     [teams],
   );
-  const years = React.useMemo(() => gridYears(focusedMonth), [focusedMonth]);
 
   // Composite key — effect only resubscribes when the actual set of
   // (team, year) tuples changes.

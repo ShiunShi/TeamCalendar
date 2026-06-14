@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import { Plus } from "lucide-react";
 
 import type { Event, Team } from "@/lib/types";
 import { EVENT_TYPE_STYLE, hexToRgba } from "@/lib/calendar/eventType";
 import { eventInterval } from "@/lib/calendar/grid";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   PopoverContent,
   PopoverHeader,
@@ -21,12 +23,14 @@ export function DayEventsPopoverContent({
   events,
   teamsById,
   isDark,
+  onCreateEvent,
   onEditEvent,
 }: {
   date: Date;
   events: Event[];
   teamsById: Map<string, Team>;
   isDark: boolean;
+  onCreateEvent?: (date: Date) => void;
   onEditEvent?: (event: Event) => void;
 }) {
   return (
@@ -37,16 +41,26 @@ export function DayEventsPopoverContent({
         </PopoverTitle>
       </PopoverHeader>
       <div className="flex flex-col gap-1">
-        {events.map((event) => (
-          <DayEventRow
-            key={event.eventId}
-            event={event}
-            team={teamsById.get(event.creatorTeamId)}
-            isDark={isDark}
-            onSelect={onEditEvent}
-          />
-        ))}
+        {events.length > 0 ? (
+          events.map((event) => (
+            <DayEventRow
+              key={event.eventId}
+              event={event}
+              team={teamsById.get(event.creatorTeamId)}
+              isDark={isDark}
+              onSelect={onEditEvent}
+            />
+          ))
+        ) : (
+          <p className="py-2 text-center text-xs text-muted-foreground">No events</p>
+        )}
       </div>
+      {onCreateEvent ? (
+        <Button type="button" variant="outline" size="sm" onClick={() => onCreateEvent(date)}>
+          <Plus className="size-3.5" />
+          Add event
+        </Button>
+      ) : null}
     </PopoverContent>
   );
 }

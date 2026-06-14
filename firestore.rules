@@ -2,8 +2,9 @@ rules_version = '2';
 
 // Phase 3 — adds matchers for teams, teamMembers, invites.
 // Phase 5 — adds events (event CRUD).
-// Phase 9 will replace the residual gaps below with Cloud Function callables
-// that validate writes server-side.
+// Phase 9 will replace the residual gaps below and the transitional cross-user
+// membership-summary rule with Cloud Function callables that validate writes
+// server-side.
 //
 // Deploy via `firebase deploy --only firestore:rules` once firebase init
 // lands in Phase 9, or paste into Firebase Console → Firestore → Rules.
@@ -12,9 +13,7 @@ rules_version = '2';
 //  1. Event writers can overwrite a single team's per-year events array
 //     (including events authored by others within THAT team) and can spoof
 //     creatorId / creatorTeamId on new entries. Rules cannot safely diff
-//     array overwrites. Blast radius is now scoped to one team's year doc
-//     rather than the whole workspace, but the per-team rule still cannot
-//     verify the writer is in this specific team's roster (see #2).
+//     array overwrites. Blast radius is scoped to one team's year doc.
 //  2. A user can inject a teamMembers entry with an arbitrary userId into
 //     any team's roster. The rules enforce "no existing entry removed and
 //     exactly one entry added," but cannot extract the added entry's userId
@@ -23,6 +22,14 @@ rules_version = '2';
 //  3. users/{uid}.teams[] is self-writable. A user can put any teamId there,
 //     which trivially satisfies the "writer is in a team" gate on event
 //     writes. Same map-extraction limitation prevents tighter validation.
+//  4. ACCEPTED TRANSITIONAL DECISION: team rename/recolor/delete and member
+//     removal update other users' embedded teams[] summaries from the client.
+//     The rule below permits those cross-user writes so these features work.
+//     Rules cannot prove which embedded map changed or that the writer owns its
+//     team, so a signed-in workspace member could rewrite another user's
+//     existing membership summaries or remove one membership. The exception
+//     cannot add memberships or change identity/profile fields. Move these
+//     cascades to trusted backend code and remove the exception in Phase 9.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -41,36 +48,110 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/team/$(teamId)).data.ownerId == request.auth.uid;
     }
 
+    function isTeamOwnerAfter(teamId) {
+      return isAuth()
+        && getAfter(/databases/$(database)/documents/team/$(teamId)).data.ownerId == request.auth.uid;
+    }
+
+    function hasAnyClaimedTeam() {
+      return isAuth()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teams is list
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teams.size() > 0;
+    }
+
+    // Transitional support for client-side denormalized membership cascades.
+    // Same-size writes cover rename/recolor; minus-one writes cover member/team
+    // removal. See accepted residual risk #4 above.
+    function isCrossUserMembershipCascade(uid) {
+      return isAuth()
+        && request.auth.uid != uid
+        && hasAnyClaimedTeam()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["teams", "primaryTeamId"])
+        && request.resource.data.teams is list
+        && (
+          (
+            request.resource.data.teams.size() == resource.data.teams.size()
+            && request.resource.data.primaryTeamId == resource.data.primaryTeamId
+          )
+          || request.resource.data.teams.size() == resource.data.teams.size() - 1
+        );
+    }
+
+    // Supports the client-side invite join batch while keeping memberCount in
+    // sync with the roster. This inherits residual risk #2: rules cannot prove
+    // that the newly appended roster entry belongs to the writer.
+    function isCoordinatedRosterAdd(teamId) {
+      return isAuth()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["memberCount"])
+        && request.resource.data.memberCount == resource.data.memberCount + 1
+        && exists(/databases/$(database)/documents/teamMembers/$(teamId))
+        && getAfter(/databases/$(database)/documents/teamMembers/$(teamId)).data.members.size()
+          == get(/databases/$(database)/documents/teamMembers/$(teamId)).data.members.size() + 1;
+    }
+
     // Users — every authed user can read any profile (needed for sidebar
     // rosters and event creator-name resolution). A user can only mutate
-    // their own document. The invite-link flow keeps all team-join writes
-    // as self-writes, so no cross-user write rule is needed.
+    // their own document, except for the documented transitional membership
+    // cascade needed by owner-managed team operations.
     match /users/{uid} {
       allow read:           if isAuth();
-      allow create, update: if isSelf(uid);
+      allow create: if isSelf(uid)
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasOnly([
+                      "uid", "name", "email", "photoURL", "primaryTeamId",
+                      "teams", "createdAt"
+                    ]);
+      allow update: if (
+                      isSelf(uid)
+                      && request.resource.data.uid == resource.data.uid
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && request.resource.data.keys().hasOnly([
+                        "uid", "name", "email", "photoURL", "primaryTeamId",
+                        "teams", "createdAt"
+                      ])
+                    ) || isCrossUserMembershipCascade(uid);
       allow delete:         if false;
     }
 
     // Teams — readable by any authed user. Creator must be the writer (so
     // ownerId can't be spoofed). Only the current owner can rename/recolor
-    // or delete.
+    // or delete. A joining user may only increment memberCount when the same
+    // atomic write also appends one roster entry.
     match /team/{teamId} {
       allow read:   if isAuth();
       allow create: if isAuth()
-                    && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isTeamOwner(teamId);
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.teamId == teamId
+                    && request.resource.data.keys().hasOnly([
+                      "teamId", "name", "color", "ownerId", "memberCount",
+                      "createdAt"
+                    ]);
+      allow update: if (
+                      isTeamOwner(teamId)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(["name", "color", "memberCount"])
+                    ) || isCoordinatedRosterAdd(teamId);
+      allow delete: if isTeamOwner(teamId);
 
       // Events — one doc per year, scoped to this team (§8.5).
       // READ: any authed user (the calendar is public per §11).
       // WRITE: the writer must claim membership in at least one team. This
       // gate reads users/{uid}.teams which is self-writable, so it is
       // best-effort — see residual risks #1 and #3 at the top of this file.
+      // Writes must target an existing team and preserve the year-doc shape.
+      // Deleting the whole year doc is denied; event deletion updates events[].
       // Phase 9 replaces this with a Cloud Function callable that validates
       // team membership and the array diff server-side.
       match /teamEvents/{year} {
         allow read: if isAuth();
-        allow create, update, delete: if isAuth()
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teams.size() > 0;
+        allow create, update: if hasAnyClaimedTeam()
+          && exists(/databases/$(database)/documents/team/$(teamId))
+          && request.resource.data.keys().hasOnly(["year", "events"])
+          && request.resource.data.year is int
+          && request.resource.data.events is list;
+        allow delete: if false;
       }
     }
 
@@ -84,9 +165,16 @@ service cloud.firestore {
     // equals request.auth.uid.
     match /teamMembers/{teamId} {
       allow read:   if isAuth();
-      allow create: if isTeamOwner(teamId);
+      allow create: if isTeamOwnerAfter(teamId)
+                    && request.resource.data.teamId == teamId
+                    && request.resource.data.keys().hasOnly(["teamId", "members"])
+                    && request.resource.data.members is list;
       allow update: if isAuth() && (
-                      isTeamOwner(teamId) ||
+                      (
+                        isTeamOwner(teamId) &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(["members"])
+                      ) ||
                       (
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members"]) &&
                         request.resource.data.members.size() == resource.data.members.size() + 1 &&

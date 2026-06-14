@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { addMonths, startOfMonth, startOfToday } from "date-fns";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -19,11 +20,13 @@ import { toast } from "sonner";
 import { useUser } from "@/lib/auth/AuthProvider";
 import type { Event, Team } from "@/lib/types";
 import { useWorkspaceTeams } from "@/lib/hooks/useWorkspaceTeams";
-import { useMonthEvents } from "@/lib/hooks/useMonthEvents";
+import { useCalendarEvents } from "@/lib/hooks/useMonthEvents";
 import { getMonthGrid, isoWeekRange } from "@/lib/calendar/grid";
+import type { CalendarDisplayMode } from "@/lib/calendar/displayMode";
 import { useTeamSelection } from "@/lib/calendar/teamSelection";
 import { eventMatchesView, useViewFilter } from "@/lib/calendar/viewFilter";
 import { useFocusedMonth } from "@/lib/calendar/focusedMonth";
+import { useCalendarDisplayMode } from "@/lib/calendar/useCalendarDisplayMode";
 import {
   eventToInput,
   parseDateKey,
@@ -38,6 +41,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CalendarHeader } from "./CalendarHeader";
 import { EventChip } from "./EventChip";
 import { MonthGrid } from "./MonthGrid";
+import { QuarterGrid } from "./QuarterGrid";
 
 // Composes the calendar view. Owns focusedMonth, the team-filter selection
 // (client-local per §7.4), the Schedule modal state, and the drag-move
@@ -45,6 +49,10 @@ import { MonthGrid } from "./MonthGrid";
 // today, N opens the Schedule modal.
 export function CalendarView() {
   const today = React.useMemo(() => startOfToday(), []);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const displayMode = useCalendarDisplayMode();
   const { focusedMonth, setFocusedMonth } = useFocusedMonth();
   const [scheduleMode, setScheduleMode] = React.useState<ScheduleMode | null>(
     null,
@@ -59,7 +67,7 @@ export function CalendarView() {
 
   const { userDoc } = useUser();
   const { teams } = useWorkspaceTeams();
-  const { events: allEvents } = useMonthEvents(focusedMonth);
+  const { events: allEvents } = useCalendarEvents(focusedMonth, displayMode);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -136,6 +144,17 @@ export function CalendarView() {
     setScheduleMode({ kind: "edit", event });
   };
 
+  const setDisplayMode = React.useCallback(
+    (mode: CalendarDisplayMode) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (mode === "quarter") next.set("calendar", "quarter");
+      else next.delete("calendar");
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   // §7.7 — drag sensors. PointerSensor's 8-px distance gate preserves the
   // existing click-on-chip → popover and click-on-cell → Schedule-modal
   // behaviors. KeyboardSensor uses the grid's measured droppable size to step
@@ -195,20 +214,34 @@ export function CalendarView() {
             onToday={() => setFocusedMonth(startOfMonth(today))}
             onPickMonth={(date) => setFocusedMonth(startOfMonth(date))}
             onSchedule={() => setScheduleMode({ kind: "create" })}
+            displayMode={displayMode}
+            onDisplayModeChange={setDisplayMode}
             scheduleDisabled={!canSchedule}
           />
 
-          <MonthGrid
-            cells={cells}
-            events={filteredEvents}
-            teamsById={teamsById}
-            focusedMonth={focusedMonth}
-            today={today}
-            isDark={isDark}
-            dragEnabled={canSchedule}
-            onSelectDate={canSchedule ? openCreateForDate : undefined}
-            onEditEvent={openEdit}
-          />
+          {displayMode === "month" ? (
+            <MonthGrid
+              cells={cells}
+              events={filteredEvents}
+              teamsById={teamsById}
+              focusedMonth={focusedMonth}
+              today={today}
+              isDark={isDark}
+              dragEnabled={canSchedule}
+              onSelectDate={canSchedule ? openCreateForDate : undefined}
+              onEditEvent={openEdit}
+            />
+          ) : (
+            <QuarterGrid
+              focusedMonth={focusedMonth}
+              events={filteredEvents}
+              teamsById={teamsById}
+              today={today}
+              isDark={isDark}
+              onCreateEvent={canSchedule ? openCreateForDate : undefined}
+              onEditEvent={openEdit}
+            />
+          )}
 
           {scheduleMode ? (
             <ScheduleDialog

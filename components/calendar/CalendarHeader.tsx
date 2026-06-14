@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { addMonths, format } from "date-fns";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { CalendarDisplayMode } from "@/lib/calendar/displayMode";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -23,6 +24,8 @@ export function CalendarHeader({
   onToday,
   onPickMonth,
   onSchedule,
+  displayMode,
+  onDisplayModeChange,
   scheduleDisabled,
 }: {
   focusedMonth: Date;
@@ -31,12 +34,17 @@ export function CalendarHeader({
   onToday: () => void;
   onPickMonth: (date: Date) => void;
   onSchedule: () => void;
+  displayMode: CalendarDisplayMode;
+  onDisplayModeChange: (mode: CalendarDisplayMode) => void;
   scheduleDisabled?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const title = displayMode === "quarter"
+    ? `${format(focusedMonth, "MMM")}–${format(addMonths(focusedMonth, 2), "MMM yyyy")}`
+    : format(focusedMonth, "MMMM yyyy");
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
         <PopoverTrigger asChild>
           <button
@@ -47,7 +55,7 @@ export function CalendarHeader({
               "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             )}
           >
-            {format(focusedMonth, "MMMM yyyy")}
+            {title}
             <ChevronDown className="size-4 text-muted-foreground" />
           </button>
         </PopoverTrigger>
@@ -88,6 +96,28 @@ export function CalendarHeader({
         >
           <ChevronRight className="size-4" />
         </Button>
+      </div>
+      <div
+        role="group"
+        aria-label="Calendar display"
+        className="flex rounded-lg border bg-background p-0.5"
+      >
+        {(["month", "quarter"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={displayMode === mode}
+            onClick={() => onDisplayModeChange(mode)}
+            className={cn(
+              "rounded-md px-2 py-1 text-xs font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              displayMode === mode
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {mode}
+          </button>
+        ))}
       </div>
       <Button
         type="button"

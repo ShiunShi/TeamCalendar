@@ -2,16 +2,17 @@
 
 import * as React from "react";
 import { Plus } from "lucide-react";
-import { endOfMonth, startOfMonth, startOfToday } from "date-fns";
+import { addMonths, endOfMonth, startOfMonth, startOfToday } from "date-fns";
 
 import { useUser } from "@/lib/auth/AuthProvider";
 import { useWorkspaceTeams } from "@/lib/hooks/useWorkspaceTeams";
 import { useTodayEvents } from "@/lib/hooks/useTodayEvents";
-import { useMonthEvents } from "@/lib/hooks/useMonthEvents";
+import { useCalendarEvents } from "@/lib/hooks/useMonthEvents";
 import { useWeekEvents } from "@/lib/hooks/useWeekEvents";
 import { useTeamSelection } from "@/lib/calendar/teamSelection";
 import { useViewFilter, type ViewKind } from "@/lib/calendar/viewFilter";
 import { useFocusedMonth } from "@/lib/calendar/focusedMonth";
+import { useCalendarDisplayMode } from "@/lib/calendar/useCalendarDisplayMode";
 import { eventInterval, isoWeekRange } from "@/lib/calendar/grid";
 import { eventMatchesPill } from "@/components/calendar/StatPills";
 import { cn } from "@/lib/utils";
@@ -44,29 +45,33 @@ export function Sidebar({
   const anyTeamSelected = selectedTeamId !== null;
 
   const { focusedMonth } = useFocusedMonth();
-  const { events: monthEvents, loading: monthLoading } =
-    useMonthEvents(focusedMonth);
+  const displayMode = useCalendarDisplayMode();
+  const { events: visibleEvents, loading: visibleEventsLoading } =
+    useCalendarEvents(focusedMonth, displayMode);
   const { events: weekEvents, loading: weekLoading } = useWeekEvents();
 
   const today = React.useMemo(() => startOfToday(), []);
   const week = React.useMemo(() => isoWeekRange(today), [today]);
-  const monthRange = React.useMemo(
+  const visibleRange = React.useMemo(
     () => ({
       start: startOfMonth(focusedMonth),
-      end: endOfMonth(focusedMonth),
+      end:
+        displayMode === "quarter"
+          ? endOfMonth(addMonths(focusedMonth, 2))
+          : endOfMonth(focusedMonth),
     }),
-    [focusedMonth],
+    [displayMode, focusedMonth],
   );
 
   const allCount = React.useMemo(() => {
     let n = 0;
-    for (const e of monthEvents) {
+    for (const e of visibleEvents) {
       const iv = eventInterval(e);
       if (!iv) continue;
-      if (iv.end >= monthRange.start && iv.start <= monthRange.end) n += 1;
+      if (iv.end >= visibleRange.start && iv.start <= visibleRange.end) n += 1;
     }
     return n;
-  }, [monthEvents, monthRange]);
+  }, [visibleEvents, visibleRange]);
 
   const outCount = React.useMemo(() => {
     const creators = new Set<string>();
@@ -114,7 +119,7 @@ export function Sidebar({
       icon: "📅",
       label: "All activity",
       kind: "all",
-      count: monthLoading ? null : allCount,
+      count: visibleEventsLoading ? null : allCount,
     },
     {
       icon: "🏖",
